@@ -4,9 +4,8 @@
  *  Pegá TODO este código en el editor de Apps Script de tu
  *  planilla:  Extensiones -> Apps Script  (borrá lo que haya)
  *
- *  Columnas esperadas en la hoja (en cualquier orden, la
- *  primera fila deben ser los títulos):
- *    Cliente | Contraseña | Vencimiento | Pago | Servidor
+ *  Columnas de la hoja (detectadas por su título, en cualquier orden):
+ *    Usuario | Contraseña | Vence | Pago (si/no) | Debe (si/no) | Activado (si/no)
  *
  *  Luego: Implementar -> Nueva implementación -> "Aplicación web"
  *    - Ejecutar como:  Yo
@@ -69,22 +68,30 @@ function hoja() {
 
 // Detecta en qué columna (1-based) está cada dato, por el título.
 function columnas(h) {
-  var ancho = Math.max(h.getLastColumn(), 5);
+  var ancho = Math.max(h.getLastColumn(), 7);
   var tit = h.getRange(1, 1, 1, ancho).getValues()[0]
              .map(function (x) { return String(x).trim().toLowerCase(); });
-  function buscar(claves, pormellado) {
+  function buscar(claves, pordefecto) {
     for (var i = 0; i < tit.length; i++)
       for (var j = 0; j < claves.length; j++)
-        if (tit[i].indexOf(claves[j]) > -1) return i + 1;
-    return pormellado; // posición por defecto si no hay título
+        if (tit[i] && tit[i].indexOf(claves[j]) > -1) return i + 1;
+    return pordefecto; // posición por defecto si no se encuentra el título
   }
   return {
-    nombre:   buscar(["cliente", "nombre", "usuario"], 1),
+    nombre:   buscar(["usuario", "cliente", "nombre"], 1),
     pass:     buscar(["contra", "clave", "pass"], 2),
-    vence:    buscar(["venc", "vence", "fecha", "expira"], 3),
-    pago:     buscar(["pago", "abon"], 4),
-    servidor: buscar(["servidor", "server", "estado"], 5)
+    vence:    buscar(["vence", "venc", "vencim"], 3),
+    pago:     buscar(["pago", "pagó", "abon"], 5),
+    debe:     buscar(["debe", "deuda", "adeuda"], 6),
+    activado: buscar(["activ", "servidor", "server", "estado"], 7)
   };
+}
+
+// Interpreta un valor de tipo si/no (acepta si, sí, s, x, true, 1, ok).
+function esSi(v) {
+  var t = String(v).trim().toLowerCase();
+  return t === "si" || t === "sí" || t === "s" || t === "x" ||
+         t === "true" || t === "1" || t === "ok" || t === "activo" || t === "pagó";
 }
 
 function fmtFecha(d) {
@@ -123,13 +130,17 @@ function leerClientes() {
     var f = filas[i];
     var nombre = f[col.nombre - 1];
     if (String(nombre).trim() === "") continue;
+    var pagoSi = esSi(f[col.pago - 1]);        // columna "Pago"  (si/no)
+    var debeSi = esSi(f[col.debe - 1]);        // columna "Debe"  (si/no)
+    var activoSi = esSi(f[col.activado - 1]);  // columna "Activado" (si/no)
     out.push({
       fila: i + 2,
       nombre: String(nombre),
       // La contraseña NO se envía al panel, por seguridad.
       vence: fmtFecha(f[col.vence - 1]),
-      pago: /pag|si|ok/i.test(String(f[col.pago - 1])) ? "pagó" : "debe",
-      servidor: /inact|no|off/i.test(String(f[col.servidor - 1])) ? "inactivo" : "activo"
+      // Si "Debe" está en si -> debe. Si no, y "Pago" está en si -> pagó. Si no -> debe.
+      pago: debeSi ? "debe" : (pagoSi ? "pagó" : "debe"),
+      servidor: activoSi ? "activo" : "inactivo"
     });
   }
   return out;
@@ -138,13 +149,15 @@ function leerClientes() {
 /* ============ Escritura ============ */
 function agregarCliente(d) {
   var h = hoja(), col = columnas(h);
-  var ancho = Math.max(h.getLastColumn(), 5);
+  var ancho = Math.max(h.getLastColumn(), 7);
   var fila = new Array(ancho).fill("");
+  var debe = (d.pago === "debe");
   fila[col.nombre - 1]   = d.nombre || "";
   fila[col.pass - 1]     = d.pass || "";
   fila[col.vence - 1]    = fmtFecha(d.vence);
-  fila[col.pago - 1]     = d.pago || "debe";
-  fila[col.servidor - 1] = d.servidor || "activo";
+  fila[col.pago - 1]     = debe ? "no" : "si";                     // Pago
+  fila[col.debe - 1]     = debe ? "si" : "no";                     // Debe
+  fila[col.activado - 1] = (d.servidor === "inactivo") ? "no" : "si"; // Activado
   h.appendRow(fila);
   return { ok: true, clientes: leerClientes() };
 }
@@ -163,8 +176,11 @@ function renovarCliente(d) {
   base.setDate(base.getDate() + dias);
 
   h.getRange(fila, col.vence).setValue(fmtFecha(base));
-  if (d.marcarPago) h.getRange(fila, col.pago).setValue("pagó");
-  if (d.activar)    h.getRange(fila, col.servidor).setValue("activo");
+  if (d.marcarPago) {
+    h.getRange(fila, col.pago).setValue("si");  // marca Pago = si
+    h.getRange(fila, col.debe).setValue("no");  // y Debe = no
+  }
+  if (d.activar) h.getRange(fila, col.activado).setValue("si"); // Activado = si
   return { ok: true, clientes: leerClientes() };
 }
 
@@ -172,7 +188,7 @@ function cambiarServidor(d) {
   var h = hoja(), col = columnas(h);
   var fila = +d.fila;
   if (!fila || fila < 2) return { ok: false, error: "Fila invalida" };
-  h.getRange(fila, col.servidor).setValue(d.estado === "activo" ? "activo" : "inactivo");
+  h.getRange(fila, col.activado).setValue(d.estado === "activo" ? "si" : "no");
   return { ok: true, clientes: leerClientes() };
 }
 
