@@ -235,6 +235,8 @@ const LS_CSV   = "loborojopy_csv_url";
 const LS_LOCAL = "loborojopy_clientes_locales";
 
 const CSV_POR_DEFECTO = "https://docs.google.com/spreadsheets/d/1qZ6L_dbUiwyPeWVqZd_N1AQqYH8qMCoUVByHeTEnXpg/edit?usp=sharing";
+// URL del Apps Script (leer y escribir). Al dejarla acá, el panel carga los datos reales solo.
+const APPS_POR_DEFECTO = "https://script.google.com/macros/s/AKfycbwBWJiDAL61F9NIZ6tAN-_wbRt1BZAtaCFK46jtSmDeOp565Ig1cUAj7Ddn6KE4maNq/exec";
 
 const modalAgregar = document.getElementById("modal-agregar");
 const modalRenovar = document.getElementById("modal-renovar");
@@ -324,7 +326,7 @@ async function apiPost(url,payload){
 /* ====================== Carga de datos ====================== */
 async function cargarDatos(){
   ocultarErrorSheet();
-  const appsUrl=localStorage.getItem(LS_APPS);
+  const appsUrl=localStorage.getItem(LS_APPS) || APPS_POR_DEFECTO;
   const locales=JSON.parse(localStorage.getItem(LS_LOCAL)||"[]").map(c=>({...c,vence:parseFecha(c.vence),origen:"local"}));
 
   // ---- Modo escritura: Apps Script ----
