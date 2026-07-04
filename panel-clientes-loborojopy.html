@@ -415,12 +415,12 @@ function render(){
         ? `<button class="mini gris" onclick="toggleServidor(${c.fila},'inactivo')">⏸ Desactivar</button>`
         : `<button class="mini verde" onclick="toggleServidor(${c.fila},'activo')">▶ Activar</button>`;
       acciones=`<div class="acciones">
-        <button class="mini verde" onclick="abrirRenovar(${c.fila},'${esc(c.nombre).replace(/'/g,"")}')">💵 Pago/Renovar</button>
+        <button class="mini verde" onclick="abrirRenovar(${c.fila},'${esc(String(c.nombre).trim()).replace(/'/g,"")}')">💵 Pago/Renovar</button>
         ${btnServ}
       </div>`;
     }
     return `<tr class="${claseFila(c,dias)}">
-      <td>${esc(c.nombre)} ${c.origen==="local"?"🆕":""}</td>
+      <td>${esc(String(c.nombre).trim())} ${c.origen==="local"?"🆕":""}</td>
       <td>${c.servidor==="activo"?"🟢 Activo":"⚪ Inactivo"}</td>
       <td>${c.pago==="pagó"?"✅ Pagó":"⚠️ Debe"}</td>
       <td class="dias ${urgente}">${textoDias}</td>
