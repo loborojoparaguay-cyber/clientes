@@ -25,15 +25,15 @@ var NOMBRE_HOJA = "";
  * ========================================================= */
 
 // 1) EMAIL (lo más simple, no requiere nada extra)
-var EMAIL_AVISOS = "";          // ej: "loborojopy@gmail.com"
+var EMAIL_AVISOS = "rodolfo2507@gmail.com";
 
 // 2) TELEGRAM (gratis) - creá un bot con @BotFather
 var TELEGRAM_TOKEN   = "";      // token que te da BotFather
 var TELEGRAM_CHAT_ID = "";      // tu chat id (ver instrucciones)
 
 // 3) WHATSAPP (gratis para uso personal vía CallMeBot)
-var WHATSAPP_PHONE  = "";       // tu numero con codigo pais, ej: "595981234567"
-var WHATSAPP_APIKEY = "";       // apikey que te da CallMeBot
+var WHATSAPP_PHONE  = "595991907709";   // tu numero con codigo pais, sin el +
+var WHATSAPP_APIKEY = "5882085";        // apikey que te dio CallMeBot
 
 /* ============ Puntos de entrada ============ */
 function doGet(e) {
