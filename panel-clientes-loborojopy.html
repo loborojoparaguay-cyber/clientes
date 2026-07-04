@@ -248,10 +248,17 @@
       <div>
         <label>Fecha de vencimiento</label>
         <input type="date" id="e-vence" required>
-        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-          <button type="button" class="mini sec" onclick="sumarDiasEdit(7)">Hoy +7</button>
-          <button type="button" class="mini sec" onclick="sumarDiasEdit(30)">Hoy +30</button>
-          <button type="button" class="mini sec" onclick="sumarDiasEdit(31)">Hoy +31</button>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:12px;color:#6b7280">Sumar días desde hoy:</span>
+          <input type="number" id="e-dias-sumar" min="1" placeholder="ej: 7" style="width:80px">
+          <button type="button" class="mini sec" onclick="sumarDiasEditInput()">Aplicar</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(5)">+5</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(7)">+7</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(10)">+10</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(15)">+15</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(30)">+30</button>
         </div>
       </div>
       <div><label>Estado de pago</label>
@@ -582,6 +589,7 @@ function abrirEditar(fila){
   editandoFila=fila;
   document.getElementById("e-nombre").value=String(c.nombre).trim();
   document.getElementById("e-pass").value="";
+  document.getElementById("e-dias-sumar").value="";
   document.getElementById("e-vence").value=c.vence?fmtISO(c.vence):"";
   document.getElementById("e-pago").value=c.pago==="pagó"?"pagó":"debe";
   document.getElementById("e-serv").value=c.servidor==="inactivo"?"inactivo":"activo";
@@ -590,6 +598,10 @@ function abrirEditar(fila){
 function sumarDiasEdit(n){
   const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n);
   document.getElementById("e-vence").value=fmtISO(d);
+}
+function sumarDiasEditInput(){
+  const n=parseInt(document.getElementById("e-dias-sumar").value,10);
+  if(n>0) sumarDiasEdit(n); else alert("Escribí un número de días válido.");
 }
 async function guardarEdicion(e){
   e.preventDefault();
