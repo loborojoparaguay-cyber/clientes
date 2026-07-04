@@ -90,9 +90,44 @@
   .ayuda ol{margin:10px 0 0;padding-left:20px;line-height:1.7;}
   code{background:#f1f5f9;padding:1px 5px;border-radius:4px;}
   .vacio{text-align:center;padding:30px;color:#6b7280;}
+
+  /* Pantalla de acceso */
+  #login-overlay{
+    position:fixed;inset:0;z-index:9999;
+    background:linear-gradient(135deg,#2b0407,#5a0a11);
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  #login-overlay.oculto{display:none;}
+  .login-card{
+    background:#fff;border-radius:18px;padding:32px 28px;width:100%;max-width:360px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center;
+  }
+  .login-card .lobo{font-size:48px;line-height:1;}
+  .login-card h2{margin:6px 0 2px;color:var(--rojo);font-size:24px;}
+  .login-card p.sub{margin:0 0 18px;color:#6b7280;font-size:13px;}
+  .login-card label{display:block;text-align:left;font-size:13px;font-weight:600;margin:10px 0 4px;}
+  .login-card input{width:100%;}
+  .login-card button{width:100%;margin-top:18px;padding:12px;font-size:15px;}
+  #login-error{color:var(--rojo);font-size:13px;margin:12px 0 0;min-height:16px;font-weight:600;}
+  body:not(.autenticado) header,
+  body:not(.autenticado) .contenedor{filter:blur(6px);pointer-events:none;user-select:none;}
 </style>
 </head>
 <body>
+
+<div id="login-overlay">
+  <form class="login-card" onsubmit="ingresar(event)">
+    <div class="lobo">🐺</div>
+    <h2>Panel LoborojoPy</h2>
+    <p class="sub">Ingresá tus datos de administrador</p>
+    <label>Usuario</label>
+    <input type="text" id="login-user" autocomplete="username" placeholder="Administrador" required>
+    <label>Contraseña</label>
+    <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••••" required>
+    <button type="submit">Ingresar</button>
+    <p id="login-error"></p>
+  </form>
+</div>
 
 <header>
   <h1>🐺 Panel de Clientes LoborojoPy</h1>
@@ -120,6 +155,7 @@
       <button onclick="abrirAgregar()">➕ Agregar cliente</button>
       <button class="sec" onclick="abrirConfig()">🔗 Conectar</button>
       <button class="sec" onclick="cargarDatos()">🔄 Actualizar</button>
+      <button class="sec" onclick="salir()">🔒 Salir</button>
     </div>
   </div>
 
@@ -564,11 +600,43 @@ function mostrarErrorSheet(tipo){
 }
 function ocultarErrorSheet(){ document.getElementById("error-sheet").classList.remove("mostrar"); }
 
+/* ====================== Acceso (login) ====================== */
+const USUARIO_OK="Administrador";
+const CLAVE_OK="LoborojoPy";
+
+function ingresar(e){
+  e.preventDefault();
+  const u=document.getElementById("login-user").value.trim();
+  const p=document.getElementById("login-pass").value;
+  if(u===USUARIO_OK && p===CLAVE_OK){
+    sessionStorage.setItem("lobo_auth","ok");
+    abrirPanel();
+  }else{
+    document.getElementById("login-error").textContent="Usuario o contraseña incorrectos.";
+    document.getElementById("login-pass").value="";
+  }
+}
+function abrirPanel(){
+  document.getElementById("login-overlay").classList.add("oculto");
+  document.body.classList.add("autenticado");
+  cargarDatos();
+}
+function salir(){
+  sessionStorage.removeItem("lobo_auth");
+  document.body.classList.remove("autenticado");
+  document.getElementById("login-overlay").classList.remove("oculto");
+  document.getElementById("login-user").value="";
+  document.getElementById("login-pass").value="";
+  document.getElementById("login-error").textContent="";
+}
+
 /* ====================== Inicio ====================== */
 document.getElementById("fecha-hoy").textContent="Hoy es "+hoy0().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 document.getElementById("buscar").addEventListener("input",render);
 if("Notification"in window&&Notification.permission==="default") Notification.requestPermission();
-cargarDatos();
+
+// Si ya inició sesión en esta pestaña, entra directo; si no, muestra el login.
+if(sessionStorage.getItem("lobo_auth")==="ok") abrirPanel();
 </script>
 </body>
 </html>
