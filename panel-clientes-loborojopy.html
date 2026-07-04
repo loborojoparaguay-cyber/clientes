@@ -238,6 +238,34 @@
   </form>
 </dialog>
 
+<!-- Modal editar cliente -->
+<dialog id="modal-editar">
+  <form method="dialog" onsubmit="guardarEdicion(event)">
+    <div class="modal-cab">✏️ Editar cliente</div>
+    <div class="modal-cuerpo">
+      <div><label>Nombre</label><input type="text" id="e-nombre" required></div>
+      <div><label>Contraseña</label><input type="password" id="e-pass" placeholder="Dejar vacío para no cambiarla"></div>
+      <div>
+        <label>Fecha de vencimiento</label>
+        <input type="date" id="e-vence" required>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(7)">Hoy +7</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(30)">Hoy +30</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(31)">Hoy +31</button>
+        </div>
+      </div>
+      <div><label>Estado de pago</label>
+        <select id="e-pago"><option value="pagó">Pagó</option><option value="debe">Debe</option></select></div>
+      <div><label>Servidor</label>
+        <select id="e-serv"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+    </div>
+    <div class="modal-pie">
+      <button type="button" class="sec" onclick="modalEditar.close()">Cancelar</button>
+      <button type="submit">Guardar cambios</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Modal configuración -->
 <dialog id="modal-config">
   <form method="dialog" onsubmit="guardarConfig(event)">
@@ -276,11 +304,13 @@ const APPS_POR_DEFECTO = "https://script.google.com/macros/s/AKfycbwBWJiDAL61F9N
 
 const modalAgregar = document.getElementById("modal-agregar");
 const modalRenovar = document.getElementById("modal-renovar");
+const modalEditar  = document.getElementById("modal-editar");
 const modalConfig  = document.getElementById("modal-config");
 
 let clientes = [];
 let modoEscritura = false; // true cuando hay Apps Script conectado
 let renovandoFila = null;
+let editandoFila = null;
 
 /* ====================== Utilidades ====================== */
 function hoy0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
@@ -292,7 +322,7 @@ function parseFecha(txt){
   const d=new Date(txt); return isNaN(d)?null:d;
 }
 function fmtFecha(d){ return d?d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"—"; }
-function fmtISO(d){ return d?d.toISOString().slice(0,10):""; }
+function fmtISO(d){ if(!d) return ""; const p=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
 function diasRestantes(d){ if(!d)return null; const r=new Date(d);r.setHours(0,0,0,0); return Math.round((r-hoy0())/86400000); }
 function normaliza(v){ return String(v||"").trim().toLowerCase(); }
 function pago(v){ const t=normaliza(v); return (t.includes("pag")||t==="si"||t==="sí"||t==="ok")?"pagó":"debe"; }
@@ -358,6 +388,8 @@ async function apiPost(url,payload){
   });
   return r.json();
 }
+// Devuelve la URL guardada, o la fija por defecto si no hay ninguna guardada.
+function urlApps(){ return localStorage.getItem(LS_APPS) || APPS_POR_DEFECTO; }
 
 /* ====================== Carga de datos ====================== */
 async function cargarDatos(){
@@ -454,6 +486,7 @@ function render(){
         : `<button class="mini verde" onclick="toggleServidor(${c.fila},'activo')">▶ Activar</button>`;
       acciones=`<div class="acciones">
         <button class="mini verde" onclick="abrirRenovar(${c.fila},'${esc(String(c.nombre).trim()).replace(/'/g,"")}')">💵 Pago/Renovar</button>
+        <button class="mini" style="background:#0b57d0" onclick="abrirEditar(${c.fila})">✏️ Editar</button>
         ${btnServ}
         <button class="mini" style="background:#7a0b12" onclick="eliminarCliente(${c.fila},'${esc(String(c.nombre).trim()).replace(/'/g,"")}')">🗑 Eliminar</button>
       </div>`;
@@ -507,7 +540,7 @@ async function guardarCliente(e){
   modalAgregar.close(); e.target.reset();
 
   if(modoEscritura){
-    const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"agregar",...nuevo});
+    const r=await apiPost(urlApps(),{accion:"agregar",...nuevo});
     manejarRespuesta(r,"Cliente agregado a la planilla ✅");
   }else{
     const locales=JSON.parse(localStorage.getItem(LS_LOCAL)||"[]");
@@ -535,16 +568,47 @@ async function confirmarRenovar(e){
     activar:document.getElementById("r-activar").checked
   };
   modalRenovar.close();
-  const r=await apiPost(localStorage.getItem(LS_APPS),payload);
+  const r=await apiPost(urlApps(),payload);
   manejarRespuesta(r,"Pago registrado y días agregados ✅");
 }
 async function toggleServidor(fila,estado){
-  const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"servidor",fila,estado});
+  const r=await apiPost(urlApps(),{accion:"servidor",fila,estado});
   manejarRespuesta(r, estado==="activo"?"Servidor activado ✅":"Servidor desactivado");
+}
+
+function abrirEditar(fila){
+  const c=clientes.find(x=>x.fila===fila);
+  if(!c) return;
+  editandoFila=fila;
+  document.getElementById("e-nombre").value=String(c.nombre).trim();
+  document.getElementById("e-pass").value="";
+  document.getElementById("e-vence").value=c.vence?fmtISO(c.vence):"";
+  document.getElementById("e-pago").value=c.pago==="pagó"?"pagó":"debe";
+  document.getElementById("e-serv").value=c.servidor==="inactivo"?"inactivo":"activo";
+  modalEditar.showModal();
+}
+function sumarDiasEdit(n){
+  const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n);
+  document.getElementById("e-vence").value=fmtISO(d);
+}
+async function guardarEdicion(e){
+  e.preventDefault();
+  const payload={
+    accion:"editar",
+    fila:editandoFila,
+    nombre:document.getElementById("e-nombre").value.trim(),
+    pass:document.getElementById("e-pass").value,
+    vence:document.getElementById("e-vence").value,
+    pago:document.getElementById("e-pago").value,
+    servidor:document.getElementById("e-serv").value
+  };
+  modalEditar.close();
+  const r=await apiPost(urlApps(),payload);
+  manejarRespuesta(r,"Cliente actualizado ✅");
 }
 async function eliminarCliente(fila,nombre){
   if(!confirm(`¿Seguro que querés eliminar a "${nombre}" de la planilla?\n\nEsta acción NO se puede deshacer.`)) return;
-  const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"eliminar",fila});
+  const r=await apiPost(urlApps(),{accion:"eliminar",fila});
   manejarRespuesta(r,"Cliente eliminado 🗑");
 }
 function manejarRespuesta(r,msgOk){

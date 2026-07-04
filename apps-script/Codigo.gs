@@ -46,6 +46,7 @@ function doPost(e) {
   var r;
   switch (datos.accion) {
     case "agregar":  r = agregarCliente(datos); break;
+    case "editar":   r = editarCliente(datos); break;
     case "renovar":  r = renovarCliente(datos); break;
     case "servidor": r = cambiarServidor(datos); break;
     case "eliminar": r = eliminarCliente(datos); break;
@@ -159,6 +160,29 @@ function agregarCliente(d) {
   fila[col.debe - 1]     = debe ? "si" : "no";                     // Debe
   fila[col.activado - 1] = (d.servidor === "inactivo") ? "no" : "si"; // Activado
   h.appendRow(fila);
+  return { ok: true, clientes: leerClientes() };
+}
+
+// Edita cualquier campo de un cliente. Solo cambia lo que se envía.
+function editarCliente(d) {
+  var h = hoja(), col = columnas(h);
+  var fila = +d.fila;
+  if (!fila || fila < 2) return { ok: false, error: "Fila invalida" };
+
+  if (typeof d.nombre === "string" && d.nombre !== "")
+    h.getRange(fila, col.nombre).setValue(d.nombre);
+  if (typeof d.pass === "string" && d.pass !== "")   // solo si mandó una contraseña nueva
+    h.getRange(fila, col.pass).setValue(d.pass);
+  if (d.vence)
+    h.getRange(fila, col.vence).setValue(fmtFecha(d.vence));
+  if (d.pago === "pagó" || d.pago === "debe") {
+    var debe = (d.pago === "debe");
+    h.getRange(fila, col.pago).setValue(debe ? "no" : "si");
+    h.getRange(fila, col.debe).setValue(debe ? "si" : "no");
+  }
+  if (d.servidor === "activo" || d.servidor === "inactivo")
+    h.getRange(fila, col.activado).setValue(d.servidor === "activo" ? "si" : "no");
+
   return { ok: true, clientes: leerClientes() };
 }
 
