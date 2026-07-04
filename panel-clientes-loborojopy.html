@@ -417,6 +417,7 @@ function render(){
       acciones=`<div class="acciones">
         <button class="mini verde" onclick="abrirRenovar(${c.fila},'${esc(String(c.nombre).trim()).replace(/'/g,"")}')">💵 Pago/Renovar</button>
         ${btnServ}
+        <button class="mini" style="background:#7a0b12" onclick="eliminarCliente(${c.fila},'${esc(String(c.nombre).trim()).replace(/'/g,"")}')">🗑 Eliminar</button>
       </div>`;
     }
     return `<tr class="${claseFila(c,dias)}">
@@ -502,6 +503,11 @@ async function confirmarRenovar(e){
 async function toggleServidor(fila,estado){
   const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"servidor",fila,estado});
   manejarRespuesta(r, estado==="activo"?"Servidor activado ✅":"Servidor desactivado");
+}
+async function eliminarCliente(fila,nombre){
+  if(!confirm(`¿Seguro que querés eliminar a "${nombre}" de la planilla?\n\nEsta acción NO se puede deshacer.`)) return;
+  const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"eliminar",fila});
+  manejarRespuesta(r,"Cliente eliminado 🗑");
 }
 function manejarRespuesta(r,msgOk){
   if(r&&r.ok){

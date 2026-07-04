@@ -18,6 +18,24 @@
 // Dejalo en "" para usar la primera hoja del archivo.
 var NOMBRE_HOJA = "";
 
+/* =========================================================
+ *  AVISOS AUTOMÁTICOS DE VENCIMIENTO
+ *  Completá SOLO el/los medio(s) que quieras usar y dejá
+ *  los demás vacíos ("").  Más abajo se explica cómo activar
+ *  el aviso diario automático.
+ * ========================================================= */
+
+// 1) EMAIL (lo más simple, no requiere nada extra)
+var EMAIL_AVISOS = "";          // ej: "loborojopy@gmail.com"
+
+// 2) TELEGRAM (gratis) - creá un bot con @BotFather
+var TELEGRAM_TOKEN   = "";      // token que te da BotFather
+var TELEGRAM_CHAT_ID = "";      // tu chat id (ver instrucciones)
+
+// 3) WHATSAPP (gratis para uso personal vía CallMeBot)
+var WHATSAPP_PHONE  = "";       // tu numero con codigo pais, ej: "595981234567"
+var WHATSAPP_APIKEY = "";       // apikey que te da CallMeBot
+
 /* ============ Puntos de entrada ============ */
 function doGet(e) {
   return responder({ ok: true, clientes: leerClientes() });
@@ -164,4 +182,66 @@ function eliminarCliente(d) {
   if (!fila || fila < 2) return { ok: false, error: "Fila invalida" };
   h.deleteRow(fila);
   return { ok: true, clientes: leerClientes() };
+}
+
+
+/* =========================================================
+ *  Revisa vencimientos y envía el aviso.
+ *  --> Esta es la función que hay que programar para que
+ *      corra sola todos los días (ver instrucciones abajo).
+ * ========================================================= */
+function revisarVencimientos() {
+  var clientes = leerClientes();
+  var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  var venceHoy = [], venceManana = [], vencidos = [];
+
+  clientes.forEach(function (c) {
+    var v = parseFecha(c.vence);
+    if (!v) return;
+    v.setHours(0, 0, 0, 0);
+    var dias = Math.round((v - hoy) / 86400000);
+    var etiqueta = c.nombre.trim() + " (" + c.vence + ")";
+    if (dias === 0) venceHoy.push(etiqueta);
+    else if (dias === 1) venceManana.push(etiqueta);
+    else if (dias < 0) vencidos.push(etiqueta + " - hace " + Math.abs(dias) + " día(s)");
+  });
+
+  if (!venceHoy.length && !venceManana.length && !vencidos.length) return; // nada que avisar
+
+  var lineas = ["🐺 LoborojoPy - Avisos de vencimiento", ""];
+  if (venceManana.length) lineas.push("⏰ Vencen MAÑANA:\n- " + venceManana.join("\n- "), "");
+  if (venceHoy.length)    lineas.push("🔴 Vencen HOY:\n- " + venceHoy.join("\n- "), "");
+  if (vencidos.length)    lineas.push("❌ Ya VENCIDOS:\n- " + vencidos.join("\n- "), "");
+  var mensaje = lineas.join("\n");
+
+  if (EMAIL_AVISOS)                          enviarEmail(mensaje);
+  if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID)    enviarTelegram(mensaje);
+  if (WHATSAPP_PHONE && WHATSAPP_APIKEY)     enviarWhatsApp(mensaje);
+}
+
+function enviarEmail(texto) {
+  MailApp.sendEmail(EMAIL_AVISOS, "🐺 LoborojoPy - Avisos de vencimiento", texto);
+}
+
+function enviarTelegram(texto) {
+  var url = "https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendMessage";
+  UrlFetchApp.fetch(url, {
+    method: "post",
+    payload: { chat_id: TELEGRAM_CHAT_ID, text: texto },
+    muteHttpExceptions: true
+  });
+}
+
+function enviarWhatsApp(texto) {
+  var url = "https://api.callmebot.com/whatsapp.php?phone=" + WHATSAPP_PHONE +
+            "&text=" + encodeURIComponent(texto) + "&apikey=" + WHATSAPP_APIKEY;
+  UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+}
+
+/* Función de prueba: ejecutala a mano una vez para probar el envío. */
+function probarAviso() {
+  var msg = "🐺 LoborojoPy - Prueba de aviso.\nSi ves este mensaje, ¡los avisos funcionan!";
+  if (EMAIL_AVISOS)                       enviarEmail(msg);
+  if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID) enviarTelegram(msg);
+  if (WHATSAPP_PHONE && WHATSAPP_APIKEY)  enviarWhatsApp(msg);
 }
