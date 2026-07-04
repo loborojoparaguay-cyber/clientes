@@ -90,9 +90,44 @@
   .ayuda ol{margin:10px 0 0;padding-left:20px;line-height:1.7;}
   code{background:#f1f5f9;padding:1px 5px;border-radius:4px;}
   .vacio{text-align:center;padding:30px;color:#6b7280;}
+
+  /* Pantalla de acceso */
+  #login-overlay{
+    position:fixed;inset:0;z-index:9999;
+    background:linear-gradient(135deg,#2b0407,#5a0a11);
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  #login-overlay.oculto{display:none;}
+  .login-card{
+    background:#fff;border-radius:18px;padding:32px 28px;width:100%;max-width:360px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center;
+  }
+  .login-card .lobo{font-size:48px;line-height:1;}
+  .login-card h2{margin:6px 0 2px;color:var(--rojo);font-size:24px;}
+  .login-card p.sub{margin:0 0 18px;color:#6b7280;font-size:13px;}
+  .login-card label{display:block;text-align:left;font-size:13px;font-weight:600;margin:10px 0 4px;}
+  .login-card input{width:100%;}
+  .login-card button{width:100%;margin-top:18px;padding:12px;font-size:15px;}
+  #login-error{color:var(--rojo);font-size:13px;margin:12px 0 0;min-height:16px;font-weight:600;}
+  body:not(.autenticado) header,
+  body:not(.autenticado) .contenedor{filter:blur(6px);pointer-events:none;user-select:none;}
 </style>
 </head>
 <body>
+
+<div id="login-overlay">
+  <form class="login-card" onsubmit="ingresar(event)">
+    <div class="lobo">🐺</div>
+    <h2>Panel LoborojoPy</h2>
+    <p class="sub">Ingresá tus datos de administrador</p>
+    <label>Usuario</label>
+    <input type="text" id="login-user" autocomplete="username" placeholder="Administrador" required>
+    <label>Contraseña</label>
+    <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••••" required>
+    <button type="submit">Ingresar</button>
+    <p id="login-error"></p>
+  </form>
+</div>
 
 <header>
   <h1>🐺 Panel de Clientes LoborojoPy</h1>
@@ -120,6 +155,7 @@
       <button onclick="abrirAgregar()">➕ Agregar cliente</button>
       <button class="sec" onclick="abrirConfig()">🔗 Conectar</button>
       <button class="sec" onclick="cargarDatos()">🔄 Actualizar</button>
+      <button class="sec" onclick="salir()">🔒 Salir</button>
     </div>
   </div>
 
@@ -202,6 +238,41 @@
   </form>
 </dialog>
 
+<!-- Modal editar cliente -->
+<dialog id="modal-editar">
+  <form method="dialog" onsubmit="guardarEdicion(event)">
+    <div class="modal-cab">✏️ Editar cliente</div>
+    <div class="modal-cuerpo">
+      <div><label>Nombre</label><input type="text" id="e-nombre" required></div>
+      <div><label>Contraseña</label><input type="password" id="e-pass" placeholder="Dejar vacío para no cambiarla"></div>
+      <div>
+        <label>Fecha de vencimiento</label>
+        <input type="date" id="e-vence" required>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:12px;color:#6b7280">Sumar días desde hoy:</span>
+          <input type="number" id="e-dias-sumar" min="1" placeholder="ej: 7" style="width:80px">
+          <button type="button" class="mini sec" onclick="sumarDiasEditInput()">Aplicar</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(5)">+5</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(7)">+7</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(10)">+10</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(15)">+15</button>
+          <button type="button" class="mini sec" onclick="sumarDiasEdit(30)">+30</button>
+        </div>
+      </div>
+      <div><label>Estado de pago</label>
+        <select id="e-pago"><option value="pagó">Pagó</option><option value="debe">Debe</option></select></div>
+      <div><label>Servidor</label>
+        <select id="e-serv"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+    </div>
+    <div class="modal-pie">
+      <button type="button" class="sec" onclick="modalEditar.close()">Cancelar</button>
+      <button type="submit">Guardar cambios</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Modal configuración -->
 <dialog id="modal-config">
   <form method="dialog" onsubmit="guardarConfig(event)">
@@ -235,14 +306,18 @@ const LS_CSV   = "loborojopy_csv_url";
 const LS_LOCAL = "loborojopy_clientes_locales";
 
 const CSV_POR_DEFECTO = "https://docs.google.com/spreadsheets/d/1qZ6L_dbUiwyPeWVqZd_N1AQqYH8qMCoUVByHeTEnXpg/edit?usp=sharing";
+// URL del Apps Script (leer y escribir). Al dejarla acá, el panel carga los datos reales solo.
+const APPS_POR_DEFECTO = "https://script.google.com/macros/s/AKfycbwBWJiDAL61F9NIZ6tAN-_wbRt1BZAtaCFK46jtSmDeOp565Ig1cUAj7Ddn6KE4maNq/exec";
 
 const modalAgregar = document.getElementById("modal-agregar");
 const modalRenovar = document.getElementById("modal-renovar");
+const modalEditar  = document.getElementById("modal-editar");
 const modalConfig  = document.getElementById("modal-config");
 
 let clientes = [];
 let modoEscritura = false; // true cuando hay Apps Script conectado
 let renovandoFila = null;
+let editandoFila = null;
 
 /* ====================== Utilidades ====================== */
 function hoy0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
@@ -254,7 +329,7 @@ function parseFecha(txt){
   const d=new Date(txt); return isNaN(d)?null:d;
 }
 function fmtFecha(d){ return d?d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"—"; }
-function fmtISO(d){ return d?d.toISOString().slice(0,10):""; }
+function fmtISO(d){ if(!d) return ""; const p=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
 function diasRestantes(d){ if(!d)return null; const r=new Date(d);r.setHours(0,0,0,0); return Math.round((r-hoy0())/86400000); }
 function normaliza(v){ return String(v||"").trim().toLowerCase(); }
 function pago(v){ const t=normaliza(v); return (t.includes("pag")||t==="si"||t==="sí"||t==="ok")?"pagó":"debe"; }
@@ -320,11 +395,13 @@ async function apiPost(url,payload){
   });
   return r.json();
 }
+// Devuelve la URL guardada, o la fija por defecto si no hay ninguna guardada.
+function urlApps(){ return localStorage.getItem(LS_APPS) || APPS_POR_DEFECTO; }
 
 /* ====================== Carga de datos ====================== */
 async function cargarDatos(){
   ocultarErrorSheet();
-  const appsUrl=localStorage.getItem(LS_APPS);
+  const appsUrl=localStorage.getItem(LS_APPS) || APPS_POR_DEFECTO;
   const locales=JSON.parse(localStorage.getItem(LS_LOCAL)||"[]").map(c=>({...c,vence:parseFecha(c.vence),origen:"local"}));
 
   // ---- Modo escritura: Apps Script ----
@@ -415,12 +492,14 @@ function render(){
         ? `<button class="mini gris" onclick="toggleServidor(${c.fila},'inactivo')">⏸ Desactivar</button>`
         : `<button class="mini verde" onclick="toggleServidor(${c.fila},'activo')">▶ Activar</button>`;
       acciones=`<div class="acciones">
-        <button class="mini verde" onclick="abrirRenovar(${c.fila},'${esc(c.nombre).replace(/'/g,"")}')">💵 Pago/Renovar</button>
+        <button class="mini verde" onclick="abrirRenovar(${c.fila},'${esc(String(c.nombre).trim()).replace(/'/g,"")}')">💵 Pago/Renovar</button>
+        <button class="mini" style="background:#0b57d0" onclick="abrirEditar(${c.fila})">✏️ Editar</button>
         ${btnServ}
+        <button class="mini" style="background:#7a0b12" onclick="eliminarCliente(${c.fila},'${esc(String(c.nombre).trim()).replace(/'/g,"")}')">🗑 Eliminar</button>
       </div>`;
     }
     return `<tr class="${claseFila(c,dias)}">
-      <td>${esc(c.nombre)} ${c.origen==="local"?"🆕":""}</td>
+      <td>${esc(String(c.nombre).trim())} ${c.origen==="local"?"🆕":""}</td>
       <td>${c.servidor==="activo"?"🟢 Activo":"⚪ Inactivo"}</td>
       <td>${c.pago==="pagó"?"✅ Pagó":"⚠️ Debe"}</td>
       <td class="dias ${urgente}">${textoDias}</td>
@@ -468,7 +547,7 @@ async function guardarCliente(e){
   modalAgregar.close(); e.target.reset();
 
   if(modoEscritura){
-    const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"agregar",...nuevo});
+    const r=await apiPost(urlApps(),{accion:"agregar",...nuevo});
     manejarRespuesta(r,"Cliente agregado a la planilla ✅");
   }else{
     const locales=JSON.parse(localStorage.getItem(LS_LOCAL)||"[]");
@@ -496,12 +575,53 @@ async function confirmarRenovar(e){
     activar:document.getElementById("r-activar").checked
   };
   modalRenovar.close();
-  const r=await apiPost(localStorage.getItem(LS_APPS),payload);
+  const r=await apiPost(urlApps(),payload);
   manejarRespuesta(r,"Pago registrado y días agregados ✅");
 }
 async function toggleServidor(fila,estado){
-  const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"servidor",fila,estado});
+  const r=await apiPost(urlApps(),{accion:"servidor",fila,estado});
   manejarRespuesta(r, estado==="activo"?"Servidor activado ✅":"Servidor desactivado");
+}
+
+function abrirEditar(fila){
+  const c=clientes.find(x=>x.fila===fila);
+  if(!c) return;
+  editandoFila=fila;
+  document.getElementById("e-nombre").value=String(c.nombre).trim();
+  document.getElementById("e-pass").value="";
+  document.getElementById("e-dias-sumar").value="";
+  document.getElementById("e-vence").value=c.vence?fmtISO(c.vence):"";
+  document.getElementById("e-pago").value=c.pago==="pagó"?"pagó":"debe";
+  document.getElementById("e-serv").value=c.servidor==="inactivo"?"inactivo":"activo";
+  modalEditar.showModal();
+}
+function sumarDiasEdit(n){
+  const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n);
+  document.getElementById("e-vence").value=fmtISO(d);
+}
+function sumarDiasEditInput(){
+  const n=parseInt(document.getElementById("e-dias-sumar").value,10);
+  if(n>0) sumarDiasEdit(n); else alert("Escribí un número de días válido.");
+}
+async function guardarEdicion(e){
+  e.preventDefault();
+  const payload={
+    accion:"editar",
+    fila:editandoFila,
+    nombre:document.getElementById("e-nombre").value.trim(),
+    pass:document.getElementById("e-pass").value,
+    vence:document.getElementById("e-vence").value,
+    pago:document.getElementById("e-pago").value,
+    servidor:document.getElementById("e-serv").value
+  };
+  modalEditar.close();
+  const r=await apiPost(urlApps(),payload);
+  manejarRespuesta(r,"Cliente actualizado ✅");
+}
+async function eliminarCliente(fila,nombre){
+  if(!confirm(`¿Seguro que querés eliminar a "${nombre}" de la planilla?\n\nEsta acción NO se puede deshacer.`)) return;
+  const r=await apiPost(urlApps(),{accion:"eliminar",fila});
+  manejarRespuesta(r,"Cliente eliminado 🗑");
 }
 function manejarRespuesta(r,msgOk){
   if(r&&r.ok){
@@ -556,11 +676,43 @@ function mostrarErrorSheet(tipo){
 }
 function ocultarErrorSheet(){ document.getElementById("error-sheet").classList.remove("mostrar"); }
 
+/* ====================== Acceso (login) ====================== */
+const USUARIO_OK="Administrador";
+const CLAVE_OK="LoborojoPy";
+
+function ingresar(e){
+  e.preventDefault();
+  const u=document.getElementById("login-user").value.trim();
+  const p=document.getElementById("login-pass").value;
+  if(u===USUARIO_OK && p===CLAVE_OK){
+    sessionStorage.setItem("lobo_auth","ok");
+    abrirPanel();
+  }else{
+    document.getElementById("login-error").textContent="Usuario o contraseña incorrectos.";
+    document.getElementById("login-pass").value="";
+  }
+}
+function abrirPanel(){
+  document.getElementById("login-overlay").classList.add("oculto");
+  document.body.classList.add("autenticado");
+  cargarDatos();
+}
+function salir(){
+  sessionStorage.removeItem("lobo_auth");
+  document.body.classList.remove("autenticado");
+  document.getElementById("login-overlay").classList.remove("oculto");
+  document.getElementById("login-user").value="";
+  document.getElementById("login-pass").value="";
+  document.getElementById("login-error").textContent="";
+}
+
 /* ====================== Inicio ====================== */
 document.getElementById("fecha-hoy").textContent="Hoy es "+hoy0().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 document.getElementById("buscar").addEventListener("input",render);
 if("Notification"in window&&Notification.permission==="default") Notification.requestPermission();
-cargarDatos();
+
+// Si ya inició sesión en esta pestaña, entra directo; si no, muestra el login.
+if(sessionStorage.getItem("lobo_auth")==="ok") abrirPanel();
 </script>
 </body>
 </html>

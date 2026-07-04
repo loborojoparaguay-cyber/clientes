@@ -4,9 +4,8 @@
  *  Pegá TODO este código en el editor de Apps Script de tu
  *  planilla:  Extensiones -> Apps Script  (borrá lo que haya)
  *
- *  Columnas esperadas en la hoja (en cualquier orden, la
- *  primera fila deben ser los títulos):
- *    Cliente | Contraseña | Vencimiento | Pago | Servidor
+ *  Columnas de la hoja (detectadas por su título, en cualquier orden):
+ *    Usuario | Contraseña | Vence | Pago (si/no) | Debe (si/no) | Activado (si/no)
  *
  *  Luego: Implementar -> Nueva implementación -> "Aplicación web"
  *    - Ejecutar como:  Yo
@@ -17,6 +16,27 @@
 // Si tu pestaña NO se llama "Clientes", cambiá el nombre acá.
 // Dejalo en "" para usar la primera hoja del archivo.
 var NOMBRE_HOJA = "";
+
+/* =========================================================
+ *  AVISOS AUTOMÁTICOS DE VENCIMIENTO
+ *  Completá SOLO el/los medio(s) que quieras usar y dejá
+ *  los demás vacíos ("").  Más abajo se explica cómo activar
+ *  el aviso diario automático.
+ * ========================================================= */
+
+// 1) EMAIL (lo más simple, no requiere nada extra)
+var EMAIL_AVISOS = "rodolfo2507@gmail.com";
+
+// 2) TELEGRAM (gratis) - creá un bot con @BotFather
+var TELEGRAM_TOKEN   = "";      // token que te da BotFather
+var TELEGRAM_CHAT_ID = "";      // tu chat id (ver instrucciones)
+
+// 3) WHATSAPP (gratis para uso personal vía CallMeBot)
+var WHATSAPP_PHONE  = "595991907709";   // tu numero con codigo pais, sin el +
+var WHATSAPP_APIKEY = "5882085";        // apikey que te dio CallMeBot
+
+// Avisar de vencidos solo hasta estos días. Más viejos que esto = ignorar.
+var DIAS_MAX_VENCIDO = 7;   // 1 semana
 
 /* ============ Puntos de entrada ============ */
 function doGet(e) {
@@ -29,6 +49,7 @@ function doPost(e) {
   var r;
   switch (datos.accion) {
     case "agregar":  r = agregarCliente(datos); break;
+    case "editar":   r = editarCliente(datos); break;
     case "renovar":  r = renovarCliente(datos); break;
     case "servidor": r = cambiarServidor(datos); break;
     case "eliminar": r = eliminarCliente(datos); break;
@@ -51,22 +72,30 @@ function hoja() {
 
 // Detecta en qué columna (1-based) está cada dato, por el título.
 function columnas(h) {
-  var ancho = Math.max(h.getLastColumn(), 5);
+  var ancho = Math.max(h.getLastColumn(), 7);
   var tit = h.getRange(1, 1, 1, ancho).getValues()[0]
              .map(function (x) { return String(x).trim().toLowerCase(); });
-  function buscar(claves, pormellado) {
+  function buscar(claves, pordefecto) {
     for (var i = 0; i < tit.length; i++)
       for (var j = 0; j < claves.length; j++)
-        if (tit[i].indexOf(claves[j]) > -1) return i + 1;
-    return pormellado; // posición por defecto si no hay título
+        if (tit[i] && tit[i].indexOf(claves[j]) > -1) return i + 1;
+    return pordefecto; // posición por defecto si no se encuentra el título
   }
   return {
-    nombre:   buscar(["cliente", "nombre", "usuario"], 1),
+    nombre:   buscar(["usuario", "cliente", "nombre"], 1),
     pass:     buscar(["contra", "clave", "pass"], 2),
-    vence:    buscar(["venc", "vence", "fecha", "expira"], 3),
-    pago:     buscar(["pago", "abon"], 4),
-    servidor: buscar(["servidor", "server", "estado"], 5)
+    vence:    buscar(["vence", "venc", "vencim"], 3),
+    pago:     buscar(["pago", "pagó", "abon"], 5),
+    debe:     buscar(["debe", "deuda", "adeuda"], 6),
+    activado: buscar(["activ", "servidor", "server", "estado"], 7)
   };
+}
+
+// Interpreta un valor de tipo si/no (acepta si, sí, s, x, true, 1, ok).
+function esSi(v) {
+  var t = String(v).trim().toLowerCase();
+  return t === "si" || t === "sí" || t === "s" || t === "x" ||
+         t === "true" || t === "1" || t === "ok" || t === "activo" || t === "pagó";
 }
 
 function fmtFecha(d) {
@@ -105,13 +134,17 @@ function leerClientes() {
     var f = filas[i];
     var nombre = f[col.nombre - 1];
     if (String(nombre).trim() === "") continue;
+    var pagoSi = esSi(f[col.pago - 1]);        // columna "Pago"  (si/no)
+    var debeSi = esSi(f[col.debe - 1]);        // columna "Debe"  (si/no)
+    var activoSi = esSi(f[col.activado - 1]);  // columna "Activado" (si/no)
     out.push({
       fila: i + 2,
       nombre: String(nombre),
       // La contraseña NO se envía al panel, por seguridad.
       vence: fmtFecha(f[col.vence - 1]),
-      pago: /pag|si|ok/i.test(String(f[col.pago - 1])) ? "pagó" : "debe",
-      servidor: /inact|no|off/i.test(String(f[col.servidor - 1])) ? "inactivo" : "activo"
+      // Si "Debe" está en si -> debe. Si no, y "Pago" está en si -> pagó. Si no -> debe.
+      pago: debeSi ? "debe" : (pagoSi ? "pagó" : "debe"),
+      servidor: activoSi ? "activo" : "inactivo"
     });
   }
   return out;
@@ -120,14 +153,39 @@ function leerClientes() {
 /* ============ Escritura ============ */
 function agregarCliente(d) {
   var h = hoja(), col = columnas(h);
-  var ancho = Math.max(h.getLastColumn(), 5);
+  var ancho = Math.max(h.getLastColumn(), 7);
   var fila = new Array(ancho).fill("");
+  var debe = (d.pago === "debe");
   fila[col.nombre - 1]   = d.nombre || "";
   fila[col.pass - 1]     = d.pass || "";
   fila[col.vence - 1]    = fmtFecha(d.vence);
-  fila[col.pago - 1]     = d.pago || "debe";
-  fila[col.servidor - 1] = d.servidor || "activo";
+  fila[col.pago - 1]     = debe ? "no" : "si";                     // Pago
+  fila[col.debe - 1]     = debe ? "si" : "no";                     // Debe
+  fila[col.activado - 1] = (d.servidor === "inactivo") ? "no" : "si"; // Activado
   h.appendRow(fila);
+  return { ok: true, clientes: leerClientes() };
+}
+
+// Edita cualquier campo de un cliente. Solo cambia lo que se envía.
+function editarCliente(d) {
+  var h = hoja(), col = columnas(h);
+  var fila = +d.fila;
+  if (!fila || fila < 2) return { ok: false, error: "Fila invalida" };
+
+  if (typeof d.nombre === "string" && d.nombre !== "")
+    h.getRange(fila, col.nombre).setValue(d.nombre);
+  if (typeof d.pass === "string" && d.pass !== "")   // solo si mandó una contraseña nueva
+    h.getRange(fila, col.pass).setValue(d.pass);
+  if (d.vence)
+    h.getRange(fila, col.vence).setValue(fmtFecha(d.vence));
+  if (d.pago === "pagó" || d.pago === "debe") {
+    var debe = (d.pago === "debe");
+    h.getRange(fila, col.pago).setValue(debe ? "no" : "si");
+    h.getRange(fila, col.debe).setValue(debe ? "si" : "no");
+  }
+  if (d.servidor === "activo" || d.servidor === "inactivo")
+    h.getRange(fila, col.activado).setValue(d.servidor === "activo" ? "si" : "no");
+
   return { ok: true, clientes: leerClientes() };
 }
 
@@ -145,8 +203,11 @@ function renovarCliente(d) {
   base.setDate(base.getDate() + dias);
 
   h.getRange(fila, col.vence).setValue(fmtFecha(base));
-  if (d.marcarPago) h.getRange(fila, col.pago).setValue("pagó");
-  if (d.activar)    h.getRange(fila, col.servidor).setValue("activo");
+  if (d.marcarPago) {
+    h.getRange(fila, col.pago).setValue("si");  // marca Pago = si
+    h.getRange(fila, col.debe).setValue("no");  // y Debe = no
+  }
+  if (d.activar) h.getRange(fila, col.activado).setValue("si"); // Activado = si
   return { ok: true, clientes: leerClientes() };
 }
 
@@ -154,7 +215,7 @@ function cambiarServidor(d) {
   var h = hoja(), col = columnas(h);
   var fila = +d.fila;
   if (!fila || fila < 2) return { ok: false, error: "Fila invalida" };
-  h.getRange(fila, col.servidor).setValue(d.estado === "activo" ? "activo" : "inactivo");
+  h.getRange(fila, col.activado).setValue(d.estado === "activo" ? "si" : "no");
   return { ok: true, clientes: leerClientes() };
 }
 
@@ -164,4 +225,68 @@ function eliminarCliente(d) {
   if (!fila || fila < 2) return { ok: false, error: "Fila invalida" };
   h.deleteRow(fila);
   return { ok: true, clientes: leerClientes() };
+}
+
+
+/* =========================================================
+ *  Revisa vencimientos y envía el aviso.
+ *  --> Esta es la función que hay que programar para que
+ *      corra sola todos los días (ver instrucciones abajo).
+ * ========================================================= */
+function revisarVencimientos() {
+  var clientes = leerClientes();
+  var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  var venceHoy = [], venceManana = [], vencidos = [];
+
+  clientes.forEach(function (c) {
+    var v = parseFecha(c.vence);
+    if (!v) return;
+    v.setHours(0, 0, 0, 0);
+    var dias = Math.round((v - hoy) / 86400000);
+    var etiqueta = c.nombre.trim() + " (" + c.vence + ")";
+    if (dias === 1) venceManana.push(etiqueta);
+    else if (dias === 0) venceHoy.push(etiqueta);
+    // Vencidos: solo desde hace 1 hasta DIAS_MAX_VENCIDO días. Más viejos se ignoran.
+    else if (dias < 0 && dias >= -DIAS_MAX_VENCIDO)
+      vencidos.push(etiqueta + " - hace " + Math.abs(dias) + " día(s)");
+  });
+
+  if (!venceHoy.length && !venceManana.length && !vencidos.length) return; // nada que avisar
+
+  var lineas = ["🐺 LoborojoPy - Avisos de vencimiento", ""];
+  if (venceManana.length) lineas.push("⏰ Vencen MAÑANA:\n- " + venceManana.join("\n- "), "");
+  if (venceHoy.length)    lineas.push("🔴 Vencen HOY:\n- " + venceHoy.join("\n- "), "");
+  if (vencidos.length)    lineas.push("❌ Vencidos (hasta " + DIAS_MAX_VENCIDO + " días):\n- " + vencidos.join("\n- "), "");
+  var mensaje = lineas.join("\n");
+
+  if (EMAIL_AVISOS)                          enviarEmail(mensaje);
+  if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID)    enviarTelegram(mensaje);
+  if (WHATSAPP_PHONE && WHATSAPP_APIKEY)     enviarWhatsApp(mensaje);
+}
+
+function enviarEmail(texto) {
+  MailApp.sendEmail(EMAIL_AVISOS, "🐺 LoborojoPy - Avisos de vencimiento", texto);
+}
+
+function enviarTelegram(texto) {
+  var url = "https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendMessage";
+  UrlFetchApp.fetch(url, {
+    method: "post",
+    payload: { chat_id: TELEGRAM_CHAT_ID, text: texto },
+    muteHttpExceptions: true
+  });
+}
+
+function enviarWhatsApp(texto) {
+  var url = "https://api.callmebot.com/whatsapp.php?phone=" + WHATSAPP_PHONE +
+            "&text=" + encodeURIComponent(texto) + "&apikey=" + WHATSAPP_APIKEY;
+  UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+}
+
+/* Función de prueba: ejecutala a mano una vez para probar el envío. */
+function probarAviso() {
+  var msg = "🐺 LoborojoPy - Prueba de aviso.\nSi ves este mensaje, ¡los avisos funcionan!";
+  if (EMAIL_AVISOS)                       enviarEmail(msg);
+  if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID) enviarTelegram(msg);
+  if (WHATSAPP_PHONE && WHATSAPP_APIKEY)  enviarWhatsApp(msg);
 }
