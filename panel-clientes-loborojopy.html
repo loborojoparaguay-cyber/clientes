@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de Clientes LoborojoPy</title>
+<style>
+  :root{
+    --rojo:#c1121f;
+    --rojo-oscuro:#8b0d16;
+    --naranja:#e8720c;
+    --verde:#1e8a3c;
+    --gris:#6b7280;
+    --negro:#111111;
+    --fondo:#f4f4f5;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--negro);
+    background-color:var(--fondo);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23c1121f' fill-opacity='0.13' d='M256 40 L206 96 L120 70 L150 150 L70 200 L150 235 L120 320 L200 300 L180 400 L256 360 L332 400 L312 300 L392 320 L362 235 L442 200 L362 150 L392 70 L306 96 Z M256 150 L300 200 L285 270 L256 300 L227 270 L212 200 Z M210 205 a14 14 0 1 0 1 0 Z M302 205 a14 14 0 1 0 1 0 Z M256 305 L240 340 L256 355 L272 340 Z'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:center 120px;
+    background-size:min(520px,80vw);
+    background-attachment:fixed;
+  }
+  header{text-align:center;padding:26px 16px 10px;}
+  header h1{
+    margin:0;font-size:clamp(28px,5vw,46px);color:var(--rojo);
+    letter-spacing:1px;text-shadow:1px 1px 0 rgba(0,0,0,.15);
+  }
+  header p{margin:6px 0 0;color:var(--negro);font-size:14px;}
+  .estado-conexion{font-size:12px;margin-top:4px;font-weight:600;}
+  .conectado{color:var(--verde);}
+  .lectura{color:var(--naranja);}
+
+  .contenedor{max-width:1080px;margin:0 auto;padding:12px 16px 60px;}
+  .aviso{border-radius:12px;padding:12px 16px;margin:14px 0;font-weight:600;display:none;}
+  .aviso.mostrar{display:block;}
+  .aviso ul{margin:8px 0 0;padding-left:20px;font-weight:500;}
+  #aviso{background:#fff3e0;border:2px solid var(--naranja);color:#663300;}
+  #error-sheet{background:#fbe3e5;border:2px solid var(--rojo);color:#7a0b12;}
+
+  .barra{
+    display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+    background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px 16px;margin-bottom:16px;
+  }
+  .barra .grupo{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  input,select,button{font-size:14px;padding:9px 11px;border-radius:8px;border:1px solid #cbd5e1;font-family:inherit;}
+  button{cursor:pointer;border:none;background:var(--rojo);color:#fff;font-weight:600;transition:background .15s;}
+  button:hover{background:var(--rojo-oscuro);}
+  button.sec{background:#374151;} button.sec:hover{background:#111827;}
+  button.mini{padding:6px 9px;font-size:12px;border-radius:6px;}
+  button.verde{background:var(--verde);} button.verde:hover{background:#156b2e;}
+  button.gris{background:var(--gris);} button.gris:hover{background:#4b5563;}
+
+  .leyenda{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:4px 0 14px;align-items:center;}
+  .chip{display:inline-flex;align-items:center;gap:6px;}
+  .punto{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.15);}
+  .p-verde{background:var(--verde);} .p-naranja{background:var(--naranja);}
+  .p-rojo{background:var(--rojo);} .p-gris{background:var(--gris);}
+
+  .tabla-wrap{background:#fff;border-radius:12px;overflow:auto;border:1px solid #e5e7eb;}
+  table{width:100%;border-collapse:collapse;min-width:820px;}
+  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid #eef0f2;font-size:14px;}
+  th{background:var(--negro);color:#fff;position:sticky;top:0;font-weight:600;}
+  tbody tr.verde{background:#e7f6ec;} tbody tr.naranja{background:#fdeddb;}
+  tbody tr.rojo{background:#fbe3e5;} tbody tr.gris{background:#f3f4f6;color:#6b7280;}
+  .estado{font-weight:700;padding:3px 10px;border-radius:20px;font-size:12px;display:inline-block;color:#fff;}
+  .b-verde{background:var(--verde);} .b-naranja{background:var(--naranja);}
+  .b-rojo{background:var(--rojo);} .b-gris{background:var(--gris);}
+  .dias{font-weight:700;} .dias.urgente{color:var(--rojo);}
+  .acciones{display:flex;gap:6px;flex-wrap:wrap;}
+
+  dialog{border:none;border-radius:16px;padding:0;max-width:440px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  dialog::backdrop{background:rgba(0,0,0,.5);}
+  .modal-cab{background:var(--rojo);color:#fff;padding:16px 20px;font-size:18px;font-weight:700;border-radius:16px 16px 0 0;}
+  .modal-cuerpo{padding:20px;display:grid;gap:12px;}
+  .modal-cuerpo label{font-size:13px;font-weight:600;display:block;margin-bottom:4px;}
+  .modal-cuerpo input[type=text],.modal-cuerpo input[type=password],
+  .modal-cuerpo input[type=date],.modal-cuerpo input[type=number],
+  .modal-cuerpo input[type=url],.modal-cuerpo select{width:100%;}
+  .check{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;}
+  .check input{width:auto;}
+  .modal-pie{display:flex;justify-content:flex-end;gap:10px;padding:0 20px 20px;}
+  .ayuda{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 18px;margin-top:16px;font-size:13px;color:#374151;}
+  .ayuda summary{cursor:pointer;font-weight:700;color:var(--rojo);}
+  .ayuda ol{margin:10px 0 0;padding-left:20px;line-height:1.7;}
+  code{background:#f1f5f9;padding:1px 5px;border-radius:4px;}
+  .vacio{text-align:center;padding:30px;color:#6b7280;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🐺 Panel de Clientes LoborojoPy</h1>
+  <p id="fecha-hoy"></p>
+  <p id="estado-conexion" class="estado-conexion"></p>
+</header>
+
+<div class="contenedor">
+
+  <div id="error-sheet" class="aviso">
+    <span id="error-titulo"></span>
+    <ul id="error-lista"></ul>
+  </div>
+
+  <div id="aviso" class="aviso">
+    <span id="aviso-titulo"></span>
+    <ul id="aviso-lista"></ul>
+  </div>
+
+  <div class="barra">
+    <div class="grupo">
+      <input type="text" id="buscar" placeholder="🔍 Buscar cliente...">
+    </div>
+    <div class="grupo">
+      <button onclick="abrirAgregar()">➕ Agregar cliente</button>
+      <button class="sec" onclick="abrirConfig()">🔗 Conectar</button>
+      <button class="sec" onclick="cargarDatos()">🔄 Actualizar</button>
+    </div>
+  </div>
+
+  <div class="leyenda">
+    <span class="chip"><span class="punto p-verde"></span> Pagó y activo</span>
+    <span class="chip"><span class="punto p-naranja"></span> Activo pero debe</span>
+    <span class="chip"><span class="punto p-rojo"></span> Vencido</span>
+    <span class="chip"><span class="punto p-gris"></span> Servidor inactivo</span>
+  </div>
+
+  <div class="tabla-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Servidor</th>
+          <th>Pago</th>
+          <th>Días para vencer</th>
+          <th>Vencimiento</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-body"></tbody>
+    </table>
+  </div>
+
+  <details class="ayuda">
+    <summary>❓ Cómo conectar la planilla para leer y escribir (Apps Script)</summary>
+    <ol>
+      <li>Abrí tu planilla → menú <b>Extensiones → Apps Script</b>.</li>
+      <li>Borrá el código que aparezca y pegá el contenido del archivo <code>Codigo.gs</code>.</li>
+      <li>Clic en <b>Implementar → Nueva implementación → tipo “Aplicación web”</b>.</li>
+      <li>Configurá: <b>Ejecutar como: Yo</b> y <b>Quién tiene acceso: Cualquier persona</b>.</li>
+      <li>Autorizá los permisos y copiá la <b>URL que termina en <code>/exec</code></b>.</li>
+      <li>Pegala acá con el botón <b>🔗 Conectar</b>. ¡Listo! Ya podés agregar clientes, registrar pagos y renovar días desde el panel.</li>
+    </ol>
+    <p style="margin-top:8px">La contraseña se guarda en tu planilla pero <b>nunca se muestra ni se envía al panel</b>.</p>
+  </details>
+</div>
+
+<!-- Modal agregar cliente -->
+<dialog id="modal-agregar">
+  <form method="dialog" onsubmit="guardarCliente(event)">
+    <div class="modal-cab">➕ Nuevo cliente</div>
+    <div class="modal-cuerpo">
+      <div><label>Nombre del cliente</label><input type="text" id="c-nombre" required></div>
+      <div><label>Contraseña</label><input type="password" id="c-pass" required placeholder="No se mostrará en el panel"></div>
+      <div><label>Fecha de vencimiento</label><input type="date" id="c-vence" required></div>
+      <div><label>Estado de pago</label>
+        <select id="c-pago"><option value="pagó">Pagó</option><option value="debe">Debe</option></select></div>
+      <div><label>Servidor</label>
+        <select id="c-serv"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
+    </div>
+    <div class="modal-pie">
+      <button type="button" class="sec" onclick="modalAgregar.close()">Cancelar</button>
+      <button type="submit">Guardar cliente</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Modal renovar / registrar pago -->
+<dialog id="modal-renovar">
+  <form method="dialog" onsubmit="confirmarRenovar(event)">
+    <div class="modal-cab">💵 Registrar pago / Renovar</div>
+    <div class="modal-cuerpo">
+      <p style="margin:0">Cliente: <b id="r-nombre"></b></p>
+      <div><label>¿Cuántos días de servicio agregar?</label>
+        <input type="number" id="r-dias" value="30" min="0" required></div>
+      <label class="check"><input type="checkbox" id="r-pago" checked> Marcar como <b>&nbsp;pagó</b></label>
+      <label class="check"><input type="checkbox" id="r-activar" checked> Activar el servidor</label>
+      <p style="font-size:12px;color:#6b7280;margin:0">
+        Si el cliente ya venció, los días se suman a partir de <b>hoy</b>.
+        Si todavía está vigente, se suman a la fecha actual de vencimiento.</p>
+    </div>
+    <div class="modal-pie">
+      <button type="button" class="sec" onclick="modalRenovar.close()">Cancelar</button>
+      <button type="submit" class="verde">Confirmar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Modal configuración -->
+<dialog id="modal-config">
+  <form method="dialog" onsubmit="guardarConfig(event)">
+    <div class="modal-cab">🔗 Conectar con Google</div>
+    <div class="modal-cuerpo">
+      <div>
+        <label>URL de la aplicación web (Apps Script — leer y escribir)</label>
+        <input type="url" id="cfg-apps" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <p style="font-size:12px;color:#6b7280;margin:0">
+        Es la opción recomendada: permite agregar clientes, registrar pagos y renovar días.</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:4px 0">
+      <div>
+        <label>(Opcional) Enlace CSV — solo lectura</label>
+        <input type="url" id="cfg-csv" placeholder="https://docs.google.com/.../pub?output=csv">
+      </div>
+      <p style="font-size:12px;color:#6b7280;margin:0">
+        Se usa solo si no cargás la app web. No permite escribir en la planilla.</p>
+    </div>
+    <div class="modal-pie">
+      <button type="button" class="sec" onclick="modalConfig.close()">Cancelar</button>
+      <button type="submit">Guardar y cargar</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* ====================== Almacenamiento ====================== */
+const LS_APPS  = "loborojopy_apps_url";
+const LS_CSV   = "loborojopy_csv_url";
+const LS_LOCAL = "loborojopy_clientes_locales";
+
+const CSV_POR_DEFECTO = "https://docs.google.com/spreadsheets/d/1qZ6L_dbUiwyPeWVqZd_N1AQqYH8qMCoUVByHeTEnXpg/edit?usp=sharing";
+
+const modalAgregar = document.getElementById("modal-agregar");
+const modalRenovar = document.getElementById("modal-renovar");
+const modalConfig  = document.getElementById("modal-config");
+
+let clientes = [];
+let modoEscritura = false; // true cuando hay Apps Script conectado
+let renovandoFila = null;
+
+/* ====================== Utilidades ====================== */
+function hoy0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function parseFecha(txt){
+  if(!txt) return null;
+  txt=String(txt).trim(); let m;
+  if((m=txt.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/))) return new Date(+m[1],+m[2]-1,+m[3]);
+  if((m=txt.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/))){let a=+m[3];if(a<100)a+=2000;return new Date(a,+m[2]-1,+m[1]);}
+  const d=new Date(txt); return isNaN(d)?null:d;
+}
+function fmtFecha(d){ return d?d.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"—"; }
+function fmtISO(d){ return d?d.toISOString().slice(0,10):""; }
+function diasRestantes(d){ if(!d)return null; const r=new Date(d);r.setHours(0,0,0,0); return Math.round((r-hoy0())/86400000); }
+function normaliza(v){ return String(v||"").trim().toLowerCase(); }
+function pago(v){ const t=normaliza(v); return (t.includes("pag")||t==="si"||t==="sí"||t==="ok")?"pagó":"debe"; }
+function servidor(v){ const t=normaliza(v); return (t.includes("inact")||t==="no"||t==="off")?"inactivo":"activo"; }
+function esc(s){ return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+function aUrlCSV(url){
+  if(!url) return "";
+  url=url.trim();
+  if(/output=csv|format=csv|tqx=out:csv/.test(url)) return url;
+  const id=(url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)||[])[1];
+  if(!id) return url;
+  const gid=(url.match(/[#&?]gid=(\d+)/)||[])[1];
+  let out=`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`;
+  if(gid) out+=`&gid=${gid}`;
+  return out;
+}
+
+/* ====================== Parser CSV ====================== */
+function parseCSV(texto){
+  const filas=[]; let campo="",fila=[],dentro=false;
+  for(let i=0;i<texto.length;i++){
+    const c=texto[i];
+    if(dentro){ if(c==='"'){ if(texto[i+1]==='"'){campo+='"';i++;} else dentro=false; } else campo+=c; }
+    else{
+      if(c==='"') dentro=true;
+      else if(c===',') { fila.push(campo); campo=""; }
+      else if(c==='\n'){ fila.push(campo); filas.push(fila); fila=[]; campo=""; }
+      else if(c==='\r'){}
+      else campo+=c;
+    }
+  }
+  if(campo!==""||fila.length){ fila.push(campo); filas.push(fila); }
+  return filas.filter(f=>f.some(x=>x.trim()!==""));
+}
+function mapearFilas(filas){
+  if(!filas.length) return [];
+  const cab=filas[0].map(h=>normaliza(h));
+  const idx=(cl)=>cab.findIndex(h=>cl.some(k=>h.includes(k)));
+  const iN=idx(["cliente","nombre","usuario"]), iV=idx(["venc","vence","fecha","expira"]);
+  const iPg=idx(["pago","abon"]), iS=idx(["servidor","server","estado"]);
+  const tieneCab=iN>-1||iV>-1;
+  const datos=tieneCab?filas.slice(1):filas;
+  return datos.map(f=>({
+    nombre:(iN>-1?f[iN]:f[0])||"Sin nombre",
+    vence:parseFecha(iV>-1?f[iV]:f[2]),
+    pago:pago(iPg>-1?f[iPg]:f[3]),
+    servidor:servidor(iS>-1?f[iS]:f[4]),
+    origen:"sheet"
+  }));
+}
+
+/* ====================== API Apps Script ====================== */
+async function apiGet(url){
+  const r=await fetch(url,{method:"GET"});
+  return r.json();
+}
+async function apiPost(url,payload){
+  const r=await fetch(url,{
+    method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"}, // evita el preflight CORS
+    body:JSON.stringify(payload)
+  });
+  return r.json();
+}
+
+/* ====================== Carga de datos ====================== */
+async function cargarDatos(){
+  ocultarErrorSheet();
+  const appsUrl=localStorage.getItem(LS_APPS);
+  const locales=JSON.parse(localStorage.getItem(LS_LOCAL)||"[]").map(c=>({...c,vence:parseFecha(c.vence),origen:"local"}));
+
+  // ---- Modo escritura: Apps Script ----
+  if(appsUrl){
+    try{
+      const res=await apiGet(appsUrl);
+      if(!res||!res.ok) throw new Error("respuesta invalida");
+      modoEscritura=true;
+      clientes=res.clientes.map(c=>({
+        fila:c.fila, nombre:c.nombre, vence:parseFecha(c.vence),
+        pago:pago(c.pago), servidor:servidor(c.servidor), origen:"sheet"
+      }));
+      setConexion(true);
+      render();
+      return;
+    }catch(e){
+      console.warn("Apps Script falló:",e);
+      modoEscritura=false;
+      mostrarErrorSheet("apps");
+    }
+  }
+
+  // ---- Modo solo lectura: CSV ----
+  modoEscritura=false;
+  setConexion(false);
+  const csvGuardado=localStorage.getItem(LS_CSV)||CSV_POR_DEFECTO;
+  const url=aUrlCSV(csvGuardado);
+  let deSheet=[];
+  try{
+    const r=await fetch(url);
+    const txt=await r.text();
+    if(!r.ok||/<!DOCTYPE html>|<html/i.test(txt.slice(0,200))) throw new Error("no-publica");
+    deSheet=mapearFilas(parseCSV(txt));
+  }catch(e){
+    console.warn("CSV falló:",e);
+    if(!appsUrl) mostrarErrorSheet("csv");
+  }
+  clientes = deSheet.length ? [...deSheet,...locales] : [...datosDemo(),...locales];
+  render();
+}
+
+function datosDemo(){
+  const h=hoy0(), mas=n=>{const d=new Date(h);d.setDate(d.getDate()+n);return d;};
+  return [
+    {nombre:"Juan Pérez",vence:mas(15),pago:"pagó",servidor:"activo",origen:"demo"},
+    {nombre:"María López",vence:mas(1),pago:"debe",servidor:"activo",origen:"demo"},
+    {nombre:"Carlos Gómez",vence:mas(-3),pago:"debe",servidor:"activo",origen:"demo"},
+    {nombre:"Ana Torres",vence:mas(40),pago:"pagó",servidor:"inactivo",origen:"demo"},
+    {nombre:"Pedro Ramírez",vence:mas(6),pago:"debe",servidor:"activo",origen:"demo"},
+  ];
+}
+
+/* ====================== Render ====================== */
+function claseFila(c,dias){
+  if(c.servidor==="inactivo") return "gris";
+  if(dias!==null&&dias<0) return "rojo";
+  if(c.pago==="pagó") return "verde";
+  return "naranja";
+}
+function estadoTexto(c,dias){
+  if(c.servidor==="inactivo") return {t:"Inactivo",cl:"b-gris"};
+  if(dias!==null&&dias<0) return {t:"Vencido",cl:"b-rojo"};
+  if(c.pago==="pagó") return {t:"Al día",cl:"b-verde"};
+  return {t:"Debe",cl:"b-naranja"};
+}
+function render(){
+  const filtro=normaliza(document.getElementById("buscar").value);
+  const body=document.getElementById("tabla-body");
+  const lista=clientes.filter(c=>normaliza(c.nombre).includes(filtro))
+    .sort((a,b)=>(diasRestantes(a.vence)??9999)-(diasRestantes(b.vence)??9999));
+
+  if(!lista.length){
+    body.innerHTML='<tr><td colspan="7" class="vacio">No hay clientes para mostrar.</td></tr>';
+    revisarAvisos(); return;
+  }
+
+  body.innerHTML=lista.map(c=>{
+    const dias=diasRestantes(c.vence);
+    const est=estadoTexto(c,dias);
+    let textoDias="—";
+    if(dias!==null){
+      textoDias=dias<0?`Venció hace ${Math.abs(dias)} día(s)`:dias===0?"¡Vence hoy!":`${dias} día(s)`;
+    }
+    const urgente=(dias!==null&&dias<=1)?"urgente":"";
+    let acciones="—";
+    if(modoEscritura && c.fila){
+      const btnServ = c.servidor==="activo"
+        ? `<button class="mini gris" onclick="toggleServidor(${c.fila},'inactivo')">⏸ Desactivar</button>`
+        : `<button class="mini verde" onclick="toggleServidor(${c.fila},'activo')">▶ Activar</button>`;
+      acciones=`<div class="acciones">
+        <button class="mini verde" onclick="abrirRenovar(${c.fila},'${esc(c.nombre).replace(/'/g,"")}')">💵 Pago/Renovar</button>
+        ${btnServ}
+      </div>`;
+    }
+    return `<tr class="${claseFila(c,dias)}">
+      <td>${esc(c.nombre)} ${c.origen==="local"?"🆕":""}</td>
+      <td>${c.servidor==="activo"?"🟢 Activo":"⚪ Inactivo"}</td>
+      <td>${c.pago==="pagó"?"✅ Pagó":"⚠️ Debe"}</td>
+      <td class="dias ${urgente}">${textoDias}</td>
+      <td>${fmtFecha(c.vence)}</td>
+      <td><span class="estado ${est.cl}">${est.t}</span></td>
+      <td>${acciones}</td>
+    </tr>`;
+  }).join("");
+  revisarAvisos();
+}
+
+/* ====================== Avisos ====================== */
+function revisarAvisos(){
+  const porVencer=clientes.filter(c=>{
+    const d=diasRestantes(c.vence);
+    return c.servidor==="activo"&&d!==null&&d>=0&&d<=1;
+  });
+  const aviso=document.getElementById("aviso");
+  if(porVencer.length){
+    document.getElementById("aviso-titulo").textContent="🔔 ¡Atención! Clientes por vencer (hoy o mañana):";
+    document.getElementById("aviso-lista").innerHTML=porVencer.map(c=>{
+      const d=diasRestantes(c.vence);
+      return `<li>${esc(c.nombre)} — ${d===0?"vence hoy":"vence mañana"} (${fmtFecha(c.vence)})</li>`;
+    }).join("");
+    aviso.classList.add("mostrar");
+    notificar(porVencer);
+  }else aviso.classList.remove("mostrar");
+}
+function notificar(lista){
+  if(!("Notification"in window)||Notification.permission!=="granted")return;
+  lista.forEach(c=>new Notification("LoborojoPy - Cliente por vencer",
+    {body:`${c.nombre} vence ${diasRestantes(c.vence)===0?"hoy":"mañana"}`}));
+}
+
+/* ====================== Acciones (escritura) ====================== */
+async function guardarCliente(e){
+  e.preventDefault();
+  const nuevo={
+    nombre:document.getElementById("c-nombre").value.trim(),
+    pass:document.getElementById("c-pass").value,
+    vence:document.getElementById("c-vence").value,
+    pago:document.getElementById("c-pago").value,
+    servidor:document.getElementById("c-serv").value
+  };
+  modalAgregar.close(); e.target.reset();
+
+  if(modoEscritura){
+    const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"agregar",...nuevo});
+    manejarRespuesta(r,"Cliente agregado a la planilla ✅");
+  }else{
+    const locales=JSON.parse(localStorage.getItem(LS_LOCAL)||"[]");
+    locales.push(nuevo);
+    localStorage.setItem(LS_LOCAL,JSON.stringify(locales));
+    cargarDatos();
+  }
+}
+
+function abrirRenovar(fila,nombre){
+  renovandoFila=fila;
+  document.getElementById("r-nombre").textContent=nombre;
+  document.getElementById("r-dias").value=30;
+  document.getElementById("r-pago").checked=true;
+  document.getElementById("r-activar").checked=true;
+  modalRenovar.showModal();
+}
+async function confirmarRenovar(e){
+  e.preventDefault();
+  const payload={
+    accion:"renovar",
+    fila:renovandoFila,
+    dias:parseInt(document.getElementById("r-dias").value,10)||0,
+    marcarPago:document.getElementById("r-pago").checked,
+    activar:document.getElementById("r-activar").checked
+  };
+  modalRenovar.close();
+  const r=await apiPost(localStorage.getItem(LS_APPS),payload);
+  manejarRespuesta(r,"Pago registrado y días agregados ✅");
+}
+async function toggleServidor(fila,estado){
+  const r=await apiPost(localStorage.getItem(LS_APPS),{accion:"servidor",fila,estado});
+  manejarRespuesta(r, estado==="activo"?"Servidor activado ✅":"Servidor desactivado");
+}
+function manejarRespuesta(r,msgOk){
+  if(r&&r.ok){
+    clientes=r.clientes.map(c=>({
+      fila:c.fila,nombre:c.nombre,vence:parseFecha(c.vence),
+      pago:pago(c.pago),servidor:servidor(c.servidor),origen:"sheet"
+    }));
+    render();
+  }else{
+    alert("Ocurrió un error al guardar en la planilla. Revisá la conexión (botón 🔗).");
+    cargarDatos();
+  }
+}
+
+/* ====================== Configuración ====================== */
+function abrirAgregar(){ modalAgregar.showModal(); }
+function abrirConfig(){
+  document.getElementById("cfg-apps").value=localStorage.getItem(LS_APPS)||"";
+  document.getElementById("cfg-csv").value=localStorage.getItem(LS_CSV)||"";
+  modalConfig.showModal();
+}
+function guardarConfig(e){
+  e.preventDefault();
+  const apps=document.getElementById("cfg-apps").value.trim();
+  const csv=document.getElementById("cfg-csv").value.trim();
+  apps?localStorage.setItem(LS_APPS,apps):localStorage.removeItem(LS_APPS);
+  csv?localStorage.setItem(LS_CSV,csv):localStorage.removeItem(LS_CSV);
+  modalConfig.close();
+  cargarDatos();
+}
+function setConexion(conectado){
+  const el=document.getElementById("estado-conexion");
+  if(conectado){ el.textContent="● Conectado a Google Sheets (lectura y escritura)"; el.className="estado-conexion conectado"; }
+  else{ el.textContent="● Modo solo lectura (conectá el Apps Script para editar)"; el.className="estado-conexion lectura"; }
+}
+
+/* ====================== Errores ====================== */
+function mostrarErrorSheet(tipo){
+  const e=document.getElementById("error-sheet");
+  e.classList.add("mostrar");
+  if(tipo==="apps"){
+    document.getElementById("error-titulo").textContent="⚠️ No pude conectar con el Apps Script. Reviso datos de ejemplo/CSV mientras tanto.";
+    document.getElementById("error-lista").innerHTML=
+      "<li>Verificá que la implementación sea <b>Aplicación web</b> con acceso <b>“Cualquier persona”</b>.</li>"+
+      "<li>La URL debe terminar en <code>/exec</code>.</li>";
+  }else{
+    document.getElementById("error-titulo").textContent="⚠️ No pude leer tu planilla (todavía no es pública). Mostrando datos de ejemplo.";
+    document.getElementById("error-lista").innerHTML=
+      "<li>Lo ideal: conectá el <b>Apps Script</b> (botón 🔗) para leer y escribir.</li>"+
+      "<li>O hacela pública: <b>Compartir → Cualquier persona con el enlace: Lector</b>.</li>";
+  }
+}
+function ocultarErrorSheet(){ document.getElementById("error-sheet").classList.remove("mostrar"); }
+
+/* ====================== Inicio ====================== */
+document.getElementById("fecha-hoy").textContent="Hoy es "+hoy0().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+document.getElementById("buscar").addEventListener("input",render);
+if("Notification"in window&&Notification.permission==="default") Notification.requestPermission();
+cargarDatos();
+</script>
+</body>
+</html>
