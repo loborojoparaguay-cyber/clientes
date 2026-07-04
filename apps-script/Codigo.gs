@@ -35,6 +35,9 @@ var TELEGRAM_CHAT_ID = "";      // tu chat id (ver instrucciones)
 var WHATSAPP_PHONE  = "595991907709";   // tu numero con codigo pais, sin el +
 var WHATSAPP_APIKEY = "5882085";        // apikey que te dio CallMeBot
 
+// Avisar de vencidos solo hasta estos días. Más viejos que esto = ignorar.
+var DIAS_MAX_VENCIDO = 7;   // 1 semana
+
 /* ============ Puntos de entrada ============ */
 function doGet(e) {
   return responder({ ok: true, clientes: leerClientes() });
@@ -241,9 +244,11 @@ function revisarVencimientos() {
     v.setHours(0, 0, 0, 0);
     var dias = Math.round((v - hoy) / 86400000);
     var etiqueta = c.nombre.trim() + " (" + c.vence + ")";
-    if (dias === 0) venceHoy.push(etiqueta);
-    else if (dias === 1) venceManana.push(etiqueta);
-    else if (dias < 0) vencidos.push(etiqueta + " - hace " + Math.abs(dias) + " día(s)");
+    if (dias === 1) venceManana.push(etiqueta);
+    else if (dias === 0) venceHoy.push(etiqueta);
+    // Vencidos: solo desde hace 1 hasta DIAS_MAX_VENCIDO días. Más viejos se ignoran.
+    else if (dias < 0 && dias >= -DIAS_MAX_VENCIDO)
+      vencidos.push(etiqueta + " - hace " + Math.abs(dias) + " día(s)");
   });
 
   if (!venceHoy.length && !venceManana.length && !vencidos.length) return; // nada que avisar
@@ -251,7 +256,7 @@ function revisarVencimientos() {
   var lineas = ["🐺 LoborojoPy - Avisos de vencimiento", ""];
   if (venceManana.length) lineas.push("⏰ Vencen MAÑANA:\n- " + venceManana.join("\n- "), "");
   if (venceHoy.length)    lineas.push("🔴 Vencen HOY:\n- " + venceHoy.join("\n- "), "");
-  if (vencidos.length)    lineas.push("❌ Ya VENCIDOS:\n- " + vencidos.join("\n- "), "");
+  if (vencidos.length)    lineas.push("❌ Vencidos (hasta " + DIAS_MAX_VENCIDO + " días):\n- " + vencidos.join("\n- "), "");
   var mensaje = lineas.join("\n");
 
   if (EMAIL_AVISOS)                          enviarEmail(mensaje);
