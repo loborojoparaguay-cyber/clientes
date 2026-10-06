@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Asistencia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans">
+
+    <!-- Pantalla de Inicio de Sesión -->
+    <div id="login-view" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-slate-200">
+            <div class="text-center mb-8">
+                <div class="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-800">Control de Horarios</h1>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Seleccione su Usuario:</label>
+                <!-- Menú desplegable con los usuarios fijos -->
+                <select id="username" class="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer text-lg">
+                    <option value="" disabled selected>Selecciona tu nombre...</option>
+                    <option value="Bruno Roa">Bruno Roa</option>
+                    <option value="Jesús Barrios">Jesús Barrios</option>
+                    <option value="Ronney Valdez">Ronney Valdez</option>
+                    <option value="Edgar Arzamendia">Edgar Arzamendia</option>
+                    <!-- Puedes agregar más usuarios aquí -->
+                </select>
+            </div>
+            <button onclick="login()" class="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition shadow-md">
+                Ingresar
+            </button>
+        </div>
+    </div>
+
+    <!-- Panel Principal -->
+    <div id="dashboard-view" class="hidden min-h-screen p-4 md:p-8">
+        <div class="max-w-2xl mx-auto space-y-6">
+            
+            <div class="bg-white rounded-xl shadow-sm border p-6 flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold">Hola, <span id="user-display" class="text-blue-600"></span></h1>
+                    <p class="text-sm text-slate-500">Jornada estándar: 07:00 a 17:30</p>
+                </div>
+                <button onclick="logout()" class="bg-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-300 transition">
+                    Cerrar Sesión
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border p-6">
+                <h2 class="text-lg font-bold mb-4 border-b pb-2">Registrar Horario de Hoy</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Fecha:</label>
+                        <input type="date" id="date-input" class="w-full border p-2.5 rounded-lg outline-none bg-slate-50" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Hora de Entrada:</label>
+                        <input type="time" id="entry-input" class="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Hora de Salida:</label>
+                        <input type="time" id="exit-input" class="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="saveRecord()" class="w-full bg-green-600 text-white font-bold p-2.5 rounded-lg hover:bg-green-700 transition shadow-sm" id="btn-save">
+                            Enviar a Base de Datos
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
+        const GOOGLE_SCRIPT_URL = "URL_DE_TU_SCRIPT_AQUI"; 
+        
+        const REQUIRED_MINS = 630; 
+        const GRACE_MINS = 15;
+        let currentUser = '';
+
+        function login() {
+            const userSelect = document.getElementById('username');
+            if(!userSelect.value) {
+                Swal.fire({ icon: 'warning', text: 'Por favor, selecciona tu nombre de la lista.' });
+                return;
+            }
+            currentUser = userSelect.value;
+            
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('dashboard-view').classList.remove('hidden');
+            document.getElementById('user-display').innerText = currentUser;
+            
+            // Forzar la fecha actual
+            const today = new Date();
+            const localDateStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+            document.getElementById('date-input').value = localDateStr;
+        }
+
+        function logout() {
+            currentUser = '';
+            document.getElementById('dashboard-view').classList.add('hidden');
+            document.getElementById('login-view').classList.remove('hidden');
+            document.getElementById('username').value = '';
+        }
+
+        function minsToStr(mins) {
+            const isNegative = mins < 0;
+            const absMins = Math.abs(mins);
+            const h = Math.floor(absMins / 60);
+            const m = absMins % 60;
+            return (isNegative ? "-" : "") + `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+
+        async function saveRecord() {
+            const date = document.getElementById('date-input').value;
+            const entry = document.getElementById('entry-input').value;
+            const exit = document.getElementById('exit-input').value;
+            const btnSave = document.getElementById('btn-save');
+            
+            if(!entry || !exit) {
+                Swal.fire({ icon: 'error', text: 'Debes completar entrada y salida.' });
+                return;
+            }
+
+            const [eH, eM] = entry.split(':').map(Number);
+            const [xH, xM] = exit.split(':').map(Number);
+            const totalMins = (xH * 60 + xM) - (eH * 60 + eM);
+            
+            if (totalMins < 0) {
+                Swal.fire({ icon: 'error', text: 'Salida inválida (es menor a la entrada).' });
+                return;
+            }
+
+            let deficit = 0;
+            let extra = 0;
+            const dateObj = new Date(date + "T00:00:00");
+            const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
+
+            if (isWeekend) {
+                extra = totalMins;
+            } else {
+                if (totalMins < REQUIRED_MINS) {
+                    deficit = REQUIRED_MINS - totalMins;
+                } else if (totalMins > (REQUIRED_MINS + GRACE_MINS)) {
+                    extra = totalMins - REQUIRED_MINS;
+                }
+            }
+
+            // Cambiar botón a estado de carga
+            btnSave.disabled = true;
+            btnSave.innerText = "Guardando...";
+
+            const payload = {
+                usuario: currentUser,
+                fecha: date,
+                dia: isWeekend ? "Finde" : "Semana",
+                entrada: entry,
+                salida: exit,
+                total_horas: minsToStr(totalMins),
+                horas_extra: minsToStr(extra),
+                horas_deuda: minsToStr(deficit)
+            };
+
+            try {
+                // Enviar datos a Google Sheets
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                Swal.fire({ icon: 'success', title: 'Guardado', text: 'Horario enviado a administración.', timer: 2000 });
+                setTimeout(logout, 2000); // Cierra sesión automáticamente al guardar
+
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'Error de Red', text: 'No se pudo conectar con la base de datos.' });
+            } finally {
+                btnSave.disabled = false;
+                btnSave.innerText = "Enviar a Base de Datos";
+            }
+        }
+    </script>
+</body>
+</html>
