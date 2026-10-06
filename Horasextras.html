@@ -21,14 +21,13 @@
             
             <div class="mb-6">
                 <label class="block text-sm font-semibold text-slate-700 mb-2">Seleccione su Usuario:</label>
-                <!-- Menú desplegable con los usuarios fijos -->
+                <!-- Menú desplegable con los usuarios -->
                 <select id="username" class="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer text-lg">
                     <option value="" disabled selected>Selecciona tu nombre...</option>
                     <option value="Bruno Roa">Bruno Roa</option>
                     <option value="Jesús Barrios">Jesús Barrios</option>
                     <option value="Ronney Valdez">Ronney Valdez</option>
                     <option value="Edgar Arzamendia">Edgar Arzamendia</option>
-                    <!-- Puedes agregar más usuarios aquí -->
                 </select>
             </div>
             <button onclick="login()" class="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 transition shadow-md">
@@ -41,36 +40,54 @@
     <div id="dashboard-view" class="hidden min-h-screen p-4 md:p-8">
         <div class="max-w-2xl mx-auto space-y-6">
             
+            <!-- Cabecera -->
             <div class="bg-white rounded-xl shadow-sm border p-6 flex justify-between items-center">
                 <div>
                     <h1 class="text-2xl font-bold">Hola, <span id="user-display" class="text-blue-600"></span></h1>
                     <p class="text-sm text-slate-500">Jornada estándar: 07:00 a 17:30</p>
                 </div>
                 <button onclick="logout()" class="bg-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-300 transition">
-                    Cerrar Sesión
+                    Salir
                 </button>
             </div>
 
+            <!-- TARJETA DE BALANCE GENERAL -->
+            <div id="balance-container" class="bg-slate-50 border border-slate-200 rounded-xl p-5 flex items-center justify-between shadow-sm transition-all">
+                <div>
+                    <h3 id="balance-label" class="text-sm font-bold uppercase tracking-wider mb-1 text-slate-800">Balance General</h3>
+                    <p id="balance-text" class="text-2xl md:text-3xl font-black text-slate-700">Calculando...</p>
+                </div>
+            </div>
+
+            <!-- Formulario de Carga -->
             <div class="bg-white rounded-xl shadow-sm border p-6">
                 <h2 class="text-lg font-bold mb-4 border-b pb-2">Registrar Horario de Hoy</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium mb-1">Fecha:</label>
-                        <input type="date" id="date-input" class="w-full border p-2.5 rounded-lg outline-none bg-slate-50" readonly>
+                        <input type="date" id="date-input" class="w-full border p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1">Hora de Entrada:</label>
+                        <label class="block text-sm font-medium mb-1">Entrada:</label>
                         <input type="time" id="entry-input" class="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1">Hora de Salida:</label>
+                        <label class="block text-sm font-medium mb-1">Salida:</label>
                         <input type="time" id="exit-input" class="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div class="flex items-end">
                         <button onclick="saveRecord()" class="w-full bg-green-600 text-white font-bold p-2.5 rounded-lg hover:bg-green-700 transition shadow-sm" id="btn-save">
-                            Enviar a Base de Datos
+                            Guardar y Enviar
                         </button>
                     </div>
+                </div>
+            </div>
+
+            <!-- HISTORIAL DÍA POR DÍA -->
+            <div class="bg-white rounded-xl shadow-sm border p-6">
+                <h2 class="text-lg font-bold mb-4 border-b pb-2">Mi Historial</h2>
+                <div id="history-list" class="space-y-1">
+                    <!-- Los registros se cargan aquí por JS -->
                 </div>
             </div>
 
@@ -78,17 +95,20 @@
     </div>
 
     <script>
-        // PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
-        const GOOGLE_SCRIPT_URL = "URL_DE_TU_SCRIPT_AQUI"; 
+        // Tu URL de Google Sheets
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyuSCyitdcUPtMU6v8UTHptv1MvfwP_i8gMEm3v_9JS-fK_QETKH4EGX-hQLckE5YJg/exec"; 
         
-        const REQUIRED_MINS = 630; 
+        const REQUIRED_MINS = 630; // 10h 30m
         const GRACE_MINS = 15;
         let currentUser = '';
+        
+        // Cargar base de datos local
+        let db = JSON.parse(localStorage.getItem('work_hours_db')) || {};
 
         function login() {
             const userSelect = document.getElementById('username');
             if(!userSelect.value) {
-                Swal.fire({ icon: 'warning', text: 'Por favor, selecciona tu nombre de la lista.' });
+                Swal.fire({ icon: 'warning', text: 'Por favor, selecciona tu nombre.' });
                 return;
             }
             currentUser = userSelect.value;
@@ -97,10 +117,12 @@
             document.getElementById('dashboard-view').classList.remove('hidden');
             document.getElementById('user-display').innerText = currentUser;
             
-            // Forzar la fecha actual
+            // Forzar fecha actual
             const today = new Date();
             const localDateStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
             document.getElementById('date-input').value = localDateStr;
+
+            renderDashboard(); // Calcular balance y cargar lista
         }
 
         function logout() {
@@ -111,11 +133,82 @@
         }
 
         function minsToStr(mins) {
-            const isNegative = mins < 0;
             const absMins = Math.abs(mins);
             const h = Math.floor(absMins / 60);
             const m = absMins % 60;
-            return (isNegative ? "-" : "") + `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+
+        function renderDashboard() {
+            if(!db[currentUser]) db[currentUser] = {};
+            const records = db[currentUser];
+            let tExtra = 0;
+            let tDebe = 0;
+            
+            const list = document.getElementById('history-list');
+            list.innerHTML = '';
+            
+            // Ordenar fechas de más reciente a más antigua
+            const dates = Object.keys(records).sort((a,b) => b.localeCompare(a));
+            
+            dates.forEach(date => {
+                const r = records[date];
+                tExtra += (r.extra || 0);
+                tDebe += (r.deficit || 0);
+                
+                let badge = '';
+                if(r.extra > 0 && r.deficit === 0) {
+                    badge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">+ ${minsToStr(r.extra)} hs (A favor)</span>`;
+                } else if(r.deficit > 0) {
+                    badge = `<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">- ${minsToStr(r.deficit)} hs (Debe)</span>`;
+                } else {
+                    badge = `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">Al día</span>`;
+                }
+                
+                // Formatear fecha a DD/MM/YYYY
+                const dateShow = date.split('-').reverse().join('/');
+
+                list.innerHTML += `
+                    <div class="flex justify-between items-center border-b border-slate-100 py-3 last:border-0">
+                        <div>
+                            <p class="font-bold text-slate-800 text-sm">${dateShow} <span class="text-xs font-normal text-slate-500">(${r.dia})</span></p>
+                            <p class="text-xs text-slate-600 mt-0.5">Marcó: ${r.entrada} a ${r.salida}</p>
+                        </div>
+                        <div>${badge}</div>
+                    </div>
+                `;
+            });
+            
+            if(dates.length === 0) {
+                list.innerHTML = '<p class="text-slate-500 text-sm text-center py-4">Aún no hay historial guardado.</p>';
+            }
+            
+            // --- CÁLCULO GENERAL NETO ---
+            let balance = tExtra - tDebe; // Resta matemática principal
+            
+            let bContainer = document.getElementById('balance-container');
+            let bText = document.getElementById('balance-text');
+            let bLabel = document.getElementById('balance-label');
+            
+            if(balance > 0) {
+                bContainer.className = "bg-green-50 border border-green-300 rounded-xl p-5 flex items-center justify-between shadow-sm";
+                bText.className = "text-2xl md:text-3xl font-black text-green-700";
+                bText.innerText = "+ " + minsToStr(balance) + " hs";
+                bLabel.innerText = "¡Tienes Horas a Favor!";
+                bLabel.className = "text-sm font-bold uppercase tracking-wider mb-1 text-green-800";
+            } else if(balance < 0) {
+                bContainer.className = "bg-red-50 border border-red-300 rounded-xl p-5 flex items-center justify-between shadow-sm";
+                bText.className = "text-2xl md:text-3xl font-black text-red-700";
+                bText.innerText = "- " + minsToStr(Math.abs(balance)) + " hs";
+                bLabel.innerText = "Horas Adeudadas Totales";
+                bLabel.className = "text-sm font-bold uppercase tracking-wider mb-1 text-red-800";
+            } else {
+                bContainer.className = "bg-blue-50 border border-blue-200 rounded-xl p-5 flex items-center justify-between shadow-sm";
+                bText.className = "text-2xl md:text-3xl font-black text-blue-700";
+                bText.innerText = "00:00 hs";
+                bLabel.innerText = "Estás al Día";
+                bLabel.className = "text-sm font-bold uppercase tracking-wider mb-1 text-blue-800";
+            }
         }
 
         async function saveRecord() {
@@ -153,9 +246,23 @@
                 }
             }
 
-            // Cambiar botón a estado de carga
+            // Guardar localmente para mantener el historial
+            db[currentUser][date] = {
+                dia: isWeekend ? "Finde" : "Semana",
+                entrada: entry,
+                salida: exit,
+                extra: extra,
+                deficit: deficit,
+                totalMins: totalMins
+            };
+            localStorage.setItem('work_hours_db', JSON.stringify(db));
+            
+            // Refrescar el cálculo en pantalla inmediatamente
+            renderDashboard();
+
+            // Enviar a la hoja de Google Sheets
             btnSave.disabled = true;
-            btnSave.innerText = "Guardando...";
+            btnSave.innerText = "Enviando a Base de Datos...";
 
             const payload = {
                 usuario: currentUser,
@@ -169,7 +276,6 @@
             };
 
             try {
-                // Enviar datos a Google Sheets
                 await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -177,14 +283,13 @@
                     body: JSON.stringify(payload)
                 });
 
-                Swal.fire({ icon: 'success', title: 'Guardado', text: 'Horario enviado a administración.', timer: 2000 });
-                setTimeout(logout, 2000); // Cierra sesión automáticamente al guardar
-
+                Swal.fire({ icon: 'success', title: 'Guardado', text: 'Horario enviado y balance actualizado.', timer: 2000 });
+                // Ya no cerramos sesión automáticamente para que el usuario pueda ver su balance actualizado.
             } catch (error) {
-                Swal.fire({ icon: 'error', title: 'Error de Red', text: 'No se pudo conectar con la base de datos.' });
+                Swal.fire({ icon: 'warning', title: 'Aviso', text: 'Se guardó en tu historial, pero hubo un error al enviar a la nube.' });
             } finally {
                 btnSave.disabled = false;
-                btnSave.innerText = "Enviar a Base de Datos";
+                btnSave.innerText = "Guardar y Enviar";
             }
         }
     </script>
